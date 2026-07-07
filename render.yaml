@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: 3asq-proxy
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
