@@ -12,7 +12,7 @@ exports.handler = async (event) => {
   const slug = event.queryStringParameters.slug;
   if (!slug) return { statusCode: 400, body: JSON.stringify({ error: 'missing slug' }) };
 
-  const html = curlFetch(`https://3asq.pro/manga/${slug}/`);
+  const html = curlFetch(`https://3asq.online/manga/${slug}/`);
   let latest = 0;
   const p1 = new RegExp(`href="https?://3asq\\.[a-z]+/manga/${slug}/(\\d+)/?"[^>]*id="btn-read-first"`, 'i');
   const m1 = html.match(p1);

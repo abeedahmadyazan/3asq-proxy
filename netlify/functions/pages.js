@@ -4,7 +4,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 function curlFetch(url) {
   try {
-    return execSync(`curl -sL -A "${UA}" -H "Accept: text/html" -H "Accept-Language: ar,en;q=0.9" -H "Referer: https://3asq.pro/" --compressed --max-time 25 "${url}"`, { encoding: 'utf-8', timeout: 30000 });
+    return execSync(`curl -sL -A "${UA}" -H "Accept: text/html" -H "Accept-Language: ar,en;q=0.9" -H "Referer: https://3asq.online/" --compressed --max-time 25 "${url}"`, { encoding: 'utf-8', timeout: 30000 });
   } catch (e) { return ''; }
 }
 
@@ -13,7 +13,7 @@ exports.handler = async (event) => {
   const chapter = event.queryStringParameters.chapter;
   if (!slug || !chapter) return { statusCode: 400, body: JSON.stringify({ error: 'missing params' }) };
 
-  const html = curlFetch(`https://3asq.pro/manga/${slug}/${chapter}/`);
+  const html = curlFetch(`https://3asq.online/manga/${slug}/${chapter}/`);
   const pages = [];
   const seen = new Set();
   let i = 0;

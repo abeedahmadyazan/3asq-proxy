@@ -77,7 +77,7 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ error: 'missing slug' }));
       return;
     }
-    const html = curlFetch(`https://3asq.pro/manga/${slug}/`);
+    const html = curlFetch(`https://3asq.online/manga/${slug}/`);
     const latest = extractLatestChapter(html, slug);
     if (latest === 0) {
       res.writeHead(200);
@@ -101,7 +101,7 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ error: 'missing params' }));
       return;
     }
-    const html = curlFetch(`https://3asq.pro/manga/${slug}/${chapter}/`);
+    const html = curlFetch(`https://3asq.online/manga/${slug}/${chapter}/`);
     const pages = extractPages(html);
     res.writeHead(200);
     res.end(JSON.stringify({ slug, chapter, totalPages: pages.length, pages }));
