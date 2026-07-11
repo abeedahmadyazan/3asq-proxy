@@ -1,7 +1,6 @@
 const { execSync } = require('child_process');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-const PROXY_BASE = 'https://3asq-api.netlify.app/.netlify/functions/image?url=';
 
 function curlFetch(url) {
   try {
@@ -23,9 +22,8 @@ exports.handler = async (event) => {
     url = url.trim();
     if (url && !url.includes('placeholder') && !seen.has(url)) {
       seen.add(url);
-      // Proxy the image through our server to bypass Cloudflare
-      const proxiedUrl = PROXY_BASE + encodeURIComponent(url);
-      pages.push({ index: i, url: proxiedUrl });
+      // Return DIRECT image URL (not proxied) — the app will load via Glide
+      pages.push({ index: i, url });
       i++;
     }
   }
@@ -41,23 +39,15 @@ exports.handler = async (event) => {
     while ((m = regex.exec(html)) !== null) addPage(m[1]);
   }
 
-  // Pattern 3: Any img with data-src containing uploads/WP-manga
+  // Pattern 3: id="image-N" with src
   if (pages.length === 0) {
-    regex = /<img[^>]*data-src="([^"]*uploads[^"]*WP-manga[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/gi;
+    regex = /<img[^>]*id="image-\d+"[^>]*src="\s*([^"]+)"[^>]*>/gi;
     while ((m = regex.exec(html)) !== null) addPage(m[1]);
   }
 
-  // Pattern 4: id="image-N" with src or data-src
+  // Pattern 4: Any src with uploads/WP-manga/data
   if (pages.length === 0) {
-    regex = /<img[^>]*id="image-\d+"[^>]*src="([^"]+)"/gi;
-    while ((m = regex.exec(html)) !== null) addPage(m[1]);
-    regex = /<img[^>]*id="image-\d+"[^>]*data-src="([^"]+)"/gi;
-    while ((m = regex.exec(html)) !== null) addPage(m[1]);
-  }
-
-  // Pattern 5: Any src with uploads/WP-manga/data
-  if (pages.length === 0) {
-    regex = /src="([^"]*uploads[^"]*WP-manga[^"]*data[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/gi;
+    regex = /src="\s*(https?:\/\/3asq\.[a-z]+\/wp-content\/uploads\/WP-manga\/data\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/gi;
     while ((m = regex.exec(html)) !== null) addPage(m[1]);
   }
 
