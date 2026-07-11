@@ -3,16 +3,21 @@ const { execSync } = require('child_process');
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 function curlFetch(url) {
-  return execSync(`curl -sL -A "${UA}" -H "Accept: text/html" -H "Accept-Language: ar,en;q=0.9" -H "Referer: https://3asq.online/" --compressed --max-time 25 "${url}"`, { encoding: 'utf-8', timeout: 30000 });
+  try {
+    return execSync(`curl -sL -A "${UA}" -H "Accept: text/html" -H "Accept-Language: ar,en;q=0.9" -H "Referer: https://3asq.online/" --compressed --max-time 25 "${url}"`, { encoding: 'utf-8', timeout: 30000 });
+  } catch (e) { return ''; }
 }
 
-module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+exports.handler = async (event, context) => {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
+  };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
-  const page = req.query.page || '1';
+  const page = (event.queryStringParameters && event.queryStringParameters.page) || '1';
   const url = page === '1' ? 'https://3asq.online/manga/' : `https://3asq.online/manga/page/${page}/`;
   
   try {
@@ -20,7 +25,6 @@ module.exports = async (req, res) => {
     const items = [];
     const seen = new Set();
     
-    // Extract manga slug + title + cover from the listing HTML
     const pattern = /href="https?:\/\/3asq\.[a-z]+\/manga\/([\w-]+)\/?"[^>]*>[\s\S]{0,500}?<img[^>]+src="([^"]+)"[\s\S]{0,800}?<a[^>]*>([^<]+)<\/a>/gi;
     
     let match;
@@ -43,8 +47,8 @@ module.exports = async (req, res) => {
       if (items.length >= 22) break;
     }
     
-    res.json({ page: parseInt(page), items, total: items.length });
+    return { statusCode: 200, headers, body: JSON.stringify({ page: parseInt(page), items, total: items.length }) };
   } catch (e) {
-    res.status(500).json({ error: e.message, items: [] });
+    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message, items: [] }) };
   }
 };
