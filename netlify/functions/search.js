@@ -1,0 +1,55 @@
+const { execSync } = require('child_process');
+
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+function curlFetch(url) {
+  try {
+    return execSync(`curl -sL -A "${UA}" -H "Accept: text/html" -H "Accept-Language: ar,en;q=0.9" -H "Referer: https://3asq.online/" --compressed --max-time 25 "${url}"`, { encoding: 'utf-8', timeout: 30000 });
+  } catch (e) { return ''; }
+}
+
+exports.handler = async (event, context) => {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
+  };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+
+  const query = (event.queryStringParameters && event.queryStringParameters.q) || '';
+  if (!query) return { statusCode: 400, headers, body: JSON.stringify({ error: 'missing query', items: [] }) };
+
+  try {
+    // Use 3asq's WordPress search
+    const encoded = encodeURIComponent(query);
+    const html = curlFetch(`https://3asq.online/?s=${encoded}&post_type=wp-manga`);
+    const items = [];
+    const seen = new Set();
+    
+    const pattern = /href="https?:\/\/3asq\.[a-z]+\/manga\/([\w-]+)\/?"[^>]*>[\s\S]{0,500}?<img[^>]+src="([^"]+)"[\s\S]{0,800}?<a[^>]*>([^<]+)<\/a>/gi;
+    
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const slug = match[1];
+      if (slug === 'feed' || !slug || seen.has(slug)) continue;
+      seen.add(slug);
+      
+      let cover = match[2];
+      if (cover.startsWith('//')) cover = 'https:' + cover;
+      
+      let title = match[3].trim();
+      title = title.replace(/&#8211;/g, '—').replace(/&#8217;/g, "'")
+                   .replace(/&amp;/g, '&').replace(/&#038;/g, '&');
+      
+      if (title) {
+        items.push({ id: '3asq-' + slug, title, cover, source: '3asq', status: 'ongoing' });
+      }
+      if (items.length >= 22) break;
+    }
+    
+    return { statusCode: 200, headers, body: JSON.stringify({ query, items, total: items.length }) };
+  } catch (e) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message, items: [] }) };
+  }
+};
