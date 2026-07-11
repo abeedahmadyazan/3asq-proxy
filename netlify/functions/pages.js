@@ -1,6 +1,7 @@
 const { execSync } = require('child_process');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const PROXY_BASE = 'https://3asq-api.netlify.app/.netlify/functions/image?url=';
 
 function curlFetch(url) {
   try {
@@ -18,91 +19,47 @@ exports.handler = async (event) => {
   const seen = new Set();
   let i = 0;
 
-  // Pattern 1: wp-manga-chapter-img with src
-  let regex = /<img[^>]*class="[^"]*wp-manga-chapter-img[^"]*"[^>]*src="\s*([^"]+)"[^>]*>/gi;
-  let m;
-  while ((m = regex.exec(html)) !== null) {
-    const url = m[1].trim();
+  function addPage(url) {
+    url = url.trim();
     if (url && !url.includes('placeholder') && !seen.has(url)) {
       seen.add(url);
-      pages.push({ index: i, url });
+      // Proxy the image through our server to bypass Cloudflare
+      const proxiedUrl = PROXY_BASE + encodeURIComponent(url);
+      pages.push({ index: i, url: proxiedUrl });
       i++;
     }
   }
 
-  // Pattern 2: wp-manga-chapter-img with data-src (lazy loaded)
+  // Pattern 1: wp-manga-chapter-img with src
+  let regex = /<img[^>]*class="[^"]*wp-manga-chapter-img[^"]*"[^>]*src="\s*([^"]+)"[^>]*>/gi;
+  let m;
+  while ((m = regex.exec(html)) !== null) addPage(m[1]);
+
+  // Pattern 2: data-src (lazy loaded)
   if (pages.length === 0) {
     regex = /<img[^>]*class="[^"]*wp-manga-chapter-img[^"]*"[^>]*data-src="\s*([^"]+)"[^>]*>/gi;
-    while ((m = regex.exec(html)) !== null) {
-      const url = m[1].trim();
-      if (url && !url.includes('placeholder') && !seen.has(url)) {
-        seen.add(url);
-        pages.push({ index: i, url });
-        i++;
-      }
-    }
+    while ((m = regex.exec(html)) !== null) addPage(m[1]);
   }
 
   // Pattern 3: Any img with data-src containing uploads/WP-manga
   if (pages.length === 0) {
     regex = /<img[^>]*data-src="([^"]*uploads[^"]*WP-manga[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/gi;
-    while ((m = regex.exec(html)) !== null) {
-      const url = m[1].trim();
-      if (url && !seen.has(url)) {
-        seen.add(url);
-        pages.push({ index: i, url });
-        i++;
-      }
-    }
+    while ((m = regex.exec(html)) !== null) addPage(m[1]);
   }
 
   // Pattern 4: id="image-N" with src or data-src
   if (pages.length === 0) {
-    regex = /<img[^>]*id="image-\d+"[^>]*(?:src|data-src)="\s*([^"]+)"[^>]*>/gi;
-    while ((m = regex.exec(html)) !== null) {
-      const url = m[1].trim();
-      if (url && !url.includes('placeholder') && !seen.has(url)) {
-        seen.add(url);
-        pages.push({ index: i, url });
-        i++;
-      }
-    }
+    regex = /<img[^>]*id="image-\d+"[^>]*src="([^"]+)"/gi;
+    while ((m = regex.exec(html)) !== null) addPage(m[1]);
+    regex = /<img[^>]*id="image-\d+"[^>]*data-src="([^"]+)"/gi;
+    while ((m = regex.exec(html)) !== null) addPage(m[1]);
   }
 
-  // Pattern 5: Any img src containing WP-manga/data
+  // Pattern 5: Any src with uploads/WP-manga/data
   if (pages.length === 0) {
-    regex = /<img[^>]*src="([^"]*WP-manga[^"]*data[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/gi;
-    while ((m = regex.exec(html)) !== null) {
-      const url = m[1].trim();
-      if (url && !seen.has(url)) {
-        seen.add(url);
-        pages.push({ index: i, url });
-        i++;
-      }
-    }
+    regex = /src="([^"]*uploads[^"]*WP-manga[^"]*data[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/gi;
+    while ((m = regex.exec(html)) !== null) addPage(m[1]);
   }
 
-  // Pattern 6: Look for image URLs in script tags or data attributes
-  if (pages.length === 0) {
-    regex = /"(https?:\/\/[^"]*WP-manga\/data\/[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/gi;
-    while ((m = regex.exec(html)) !== null) {
-      const url = m[1].trim();
-      if (url && !seen.has(url)) {
-        seen.add(url);
-        pages.push({ index: i, url });
-        i++;
-      }
-    }
-  }
-
-  // Fix URLs
-  pages.forEach(p => {
-    if (p.url.startsWith('//')) p.url = 'https:' + p.url;
-  });
-
-  return {
-    statusCode: 200,
-    headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ slug, chapter, totalPages: pages.length, pages })
-  };
+  return { statusCode: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ slug, chapter, totalPages: pages.length, pages }) };
 };
